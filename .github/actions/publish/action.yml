@@ -13,66 +13,58 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Node.js 16.x
+    - name: Setup Node.js 18.x
       uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3
       with:
-        node-version: 16.x
+        node-version: 18.x
 
     - name: Install dependencies
       shell: bash
       run: |
         npm ci
 
-    # FIXME: remove 'supervisor' from the 'all' target
+    # https://github.com/oras-project/setup-oras
+    - name: Setup ORAS
+      uses: oras-project/setup-oras@v1
+      with:
+        version: 1.0.0
+
     - name: Generate Dockerfiles
       shell: bash
       run: |
-        npm run os-arch
-        npm run os-device
-        npm run stack-arch
-        npm run stack-device
-
+        npm run all
         tar czf ${{ runner.temp }}/files.tgz -C balena-base-images .
 
-    # https://github.com/actions/upload-artifact
-    - name: Upload artifact
-      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3
-      with:
-        name: files-${{ github.event.pull_request.head.sha }}
-        path: ${{ runner.temp }}/files.tgz
-        retention-days: 90
+    # https://oras.land/cli/1_pushing/
+    - name: Push artifacts with ORAS
+      shell: bash
+      run: |
+        oras push -p ${{ fromJSON(inputs.secrets).GITHUB_TOKEN }} \
+          ghcr.io/${{ github.repository }}:files-${{ github.event.pull_request.head.sha }} \
+          balena-base-images/
 
-    # FIXME: remove 'supervisor' from the 'all-lib' target
     - name: Generate Stackbrew Library files
       shell: bash
       run: |
-        npm run os-arch-lib
-        npm run os-device-lib
-        npm run stack-arch-lib
-        npm run stack-device-lib
-
+        npm run all-lib
         tar czf ${{ runner.temp }}/libs.tgz -C library .
 
-    # publish these to a github release so they can be downloaded by official-images
-    # https://github.com/actions/upload-artifact
-    - name: Upload artifact
-      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3
-      with:
-        name: gh-release-${{ github.event.pull_request.head.sha }}
-        path: ${{ runner.temp }}/libs.tgz
-        retention-days: 90
+    # https://oras.land/cli/1_pushing/
+    - name: Push artifacts with ORAS
+      shell: bash
+      run: |
+        oras push -p ${{ fromJSON(inputs.secrets).GITHUB_TOKEN }} \
+          ghcr.io/${{ github.repository }}:libs-${{ github.event.pull_request.head.sha }} \
+          library/
 
     # BELOW IS FOR TESTING ONLY, REMOVE BEFORE MERGING
 
-    # https://github.com/dawidd6/action-download-artifact
-    - name: Download artifacts from PR workflow
-      uses: dawidd6/action-download-artifact@5e780fc7bbd0cac69fc73271ed86edf5dcb72d67 # v2
-      with:
-        # github_token: ${{ steps.github_tokens.outputs.trusted || false }}
-        commit: ${{ github.event.pull_request.head.sha }}
-        path: ${{ runner.temp }}
-        workflow_conclusion: success
-        name: files-${{ github.event.pull_request.head.sha }}
+    # https://oras.land/cli/2_pulling/
+    - name: Pull artifacts with ORAS
+      shell: bash
+      run: |
+        oras pull -p ${{ fromJSON(inputs.secrets).GITHUB_TOKEN }} \
+          ghcr.io/${{ github.repository }}:files-${{ github.event.pull_request.head.sha }}
 
     # https://github.com/crazy-max/ghaction-import-gpg
     - name: Import GPG private key

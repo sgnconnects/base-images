@@ -13,15 +13,12 @@ inputs:
 runs:
   using: "composite"
   steps:
-    # https://github.com/dawidd6/action-download-artifact
-    - name: Download artifacts from PR workflow
-      uses: dawidd6/action-download-artifact@5e780fc7bbd0cac69fc73271ed86edf5dcb72d67 # v2
-      with:
-        # github_token: ${{ steps.github_tokens.outputs.trusted || false }}
-        commit: ${{ github.event.pull_request.head.sha || github.event.head_commit.id }}
-        path: ${{ runner.temp }}
-        workflow_conclusion: success
-        name: files-${{ github.event.pull_request.head.sha }}
+    # https://oras.land/cli/2_pulling/
+    - name: Pull artifacts with ORAS
+      shell: bash
+      run: |
+        oras pull -p ${{ fromJSON(inputs.secrets).GITHUB_TOKEN }} \
+          ghcr.io/${{ github.repository }}:files-${{ github.event.pull_request.head.sha }}
 
     # https://github.com/crazy-max/ghaction-import-gpg
     - name: Import GPG private key
